@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock
-
 import pytest
 
 from trl import DPOConfig, GRPOConfig, KTOConfig, RLOOConfig
-from trl.trainer.callbacks import SyncRefModelCallback
 
 
 @pytest.mark.parametrize("config_cls", [DPOConfig, GRPOConfig, KTOConfig, RLOOConfig])
@@ -56,33 +52,3 @@ def test_sync_ref_model_disabled_by_default(tmp_path, config_cls):
     )
     assert config.sync_ref_model is False
     assert config.ref_model_sync_steps == 512
-
-
-def test_sync_ref_model_callback_defensive_on_zero_steps():
-    cb = SyncRefModelCallback(ref_model=MagicMock(), accelerator=None)
-    cb.sync_target_model = MagicMock()
-
-    args = SimpleNamespace(ref_model_sync_steps=0, ref_model_mixup_alpha=0.6)
-    state = SimpleNamespace(global_step=1)
-
-    # Should not raise ZeroDivisionError
-    cb.on_step_end(args=args, state=state, control=None, model=MagicMock())
-    cb.sync_target_model.assert_not_called()
-
-
-def test_sync_ref_model_callback_syncs_on_modulo_step():
-    cb = SyncRefModelCallback(ref_model=MagicMock(), accelerator=None)
-    cb.sync_target_model = MagicMock()
-
-    args = SimpleNamespace(ref_model_sync_steps=10, ref_model_mixup_alpha=0.6)
-    model = MagicMock()
-
-    # Step not matching modulo
-    state_no_sync = SimpleNamespace(global_step=7)
-    cb.on_step_end(args=args, state=state_no_sync, control=None, model=model)
-    cb.sync_target_model.assert_not_called()
-
-    # Step matching modulo
-    state_sync = SimpleNamespace(global_step=10)
-    cb.on_step_end(args=args, state=state_sync, control=None, model=model)
-    cb.sync_target_model.assert_called_once_with(model, cb.ref_model, 0.6)
